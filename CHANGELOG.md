@@ -1,5 +1,18 @@
 # 更新日志
 
+## 1.1.2 —— 2026-10-29（配置面收口 + 安装本机 profile）
+
+- `autoStart` 改走 `mergeConfig` 三层覆盖。v1.1.1 里 `index.js` 直读 raw patch config，
+  所以 `DSH_VISION_CONFIG` 与 `reloadConfig()` 都改不动它，也不出现在 `vision_status` 的
+  `config` 里；现在 `engine.cfg.autoStart` 生效，环境变量同样能开。
+- `hotReload` 补进 `cordis.patch.yml`（此前该文件声称「全部字段见此」，实际缺这个键）。
+- 日志前缀统一为 `[dsh-screen-vision-win]`（`tools.js` 里残留 3 处旧前缀，排查时会对不上）。
+- `package.json` 的 `files` 加上 `test`，`npm pack` 后 `node test/run.mjs` 才真的能跑。
+- 真机复测修正一处结论：常驻 worker 在真实宿主环境**可用**（此前 EPERM 是 DSH 受限沙箱
+  禁管道造成的假阴性）。实测经 worker 连续 6 帧 627~871ms/帧 ≈ **1.2~1.6fps**，首帧
+  3.3s 含 worker 冷启；`window_switch`/`focus`/`popup`/`content_change` 均如期产生。
+- README 的耗时表已按上列真机数字校准。
+
 ## 1.1.1 —— 2026-10-29（Windows 采集层重写：可实际运行）
 
 v1.1.0 名义上支持 Windows，实际四条采集通道全断，装好后只会持续输出 `degraded`。

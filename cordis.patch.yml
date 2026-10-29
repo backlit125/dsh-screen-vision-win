@@ -17,7 +17,8 @@
         # 帧率上限：感知循环最小间隔（毫秒）。
         # 注意：这是「间隔下限」，实际频率受单帧采集耗时约束——引擎读到
         # lastCaptureMs 后会自动放宽间隔，不会把超时当成正常节拍。
-        # 常驻 worker 约 500ms/帧（2fps）；受限环境回落到单进程时约 1500ms/帧。
+        # 常驻 worker 约 0.7~0.9s/帧（≈1.2~1.6fps，真机连续 6 帧实测；首帧另含 ~2.5s 冷启）；
+        # 受限环境（禁管道 spawn）回落到单进程时约 1.5s/帧。
         # 1000≈1fps（省电），500≈2fps（交互流畅 vs CPU 的平衡点）。
         minPollMs: 500
         # 静默节流：连续 2 帧无变化后拉长到 idlePollMs；再静默 idleDemoteAfterMs
@@ -72,3 +73,5 @@
         # 开机即持续监听：改成 true（或设环境变量 DSH_VISION_AUTOSTART=1）。
         # 默认 false =「即用即读」：AI 首次 vision_read 会即时采一帧，无需预热。
         autoStart: false
+        # 允许运行时热读 patch 配置（reloadConfig）；false 则配置改动只在重启后生效。
+        hotReload: true

@@ -45,7 +45,7 @@ lib/tools.js      7 个工具的宿主注册定义（完整 JSON Schema）
 | 环节 | 耗时 |
 |---|---|
 | PowerShell 冷启动到 `READY`（含 Add-Type） | ~780ms |
-| 单帧采集 · 常驻 worker | ~500ms |
+| 单帧采集 · 常驻 worker（真机连续 6 帧实测） | 627~871ms（≈1.2~1.6fps，首帧 3.3s 含冷启） |
 | 单帧采集 · 每帧新进程（oneshot） | ~1500ms |
 | Node 侧 PNG 自解码（5.8MB → 16.4M 像素） | ~80ms |
 | `sampleGrid` 24×11 全采 | ~30ms |
@@ -178,7 +178,7 @@ v1.1.0 装好后不会崩，但会**一直输出 `degraded`**——四条采集�
 | 用例 | 操作 | 期望 | 本机实测 |
 |---|---|---|---|
 | U1 静态读取 | `vision_read` | `ok=true`，source_window/viewport/visible_text/ui_elements/layout 齐全，中文不乱码 | ✅ 2560×1600，标题中文正确 |
-| U2 能力探测 | `vision_start` | `a11yRunning/a11yCanScreenshot=true`，`screenW/H` 为物理像素，`captureVia` 如实 | ✅ oneshot 1500ms；worker ~500ms |
+| U2 能力探测 | `vision_start` | `a11yRunning/a11yCanScreenshot=true`，`screenW/H` 为物理像素，`captureVia` 如实 | ✅ oneshot ~1500ms；worker 627~871ms |
 | U3 窗口切换 | 切到别的应用 | `window_switch`（from→to，confidence 0.95） | ✅ DeepSeek Harness → AgentHub |
 | U4 画面运动 | 播放视频 / 滚动 | `motion`/`scroll`/`scene_change` + 区域标签 | ✅ 「画面横向大半屏发生变化（58% 区域）」 |
 | U5 内容增删 | 页面刷新/弹窗 | `content_change` added/removed texts | ✅ 新增 6 条 |
