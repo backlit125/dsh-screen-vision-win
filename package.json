@@ -1,6 +1,6 @@
 {
   "name": "dsh-screen-vision-win",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "AI 连续视觉（Windows 版）：把桌屏幕面的动态变化（滚动/切窗/弹窗/焦点/视频/动画）持续转换为带时间戳的结构化 JSON 事件流与自然语言摘要，供 dsh agent 直接消费。零外部依赖：纯 node: 内建 + PowerShell 调 UI Automation 与 GDI+。",
   "type": "module",
   "main": "lib/index.js",

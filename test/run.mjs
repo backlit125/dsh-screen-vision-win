@@ -413,6 +413,31 @@ check("worker mode answers with an ASCII-only line protocol", () => {
   assert.ok(has(psCode, "ReadLine"), "worker loop missing");
 });
 
+/* ── 7b. 引擎源码静态契约（防回归）─────────────────────────── */
+console.log(NL + "[7b] engine source invariants");
+const engSrc = readFileSync(join(LIB, "engine.js"), "utf8");
+const capSrc = readFileSync(join(LIB, "capture.js"), "utf8");
+check("caption events are gated on video evidence", () => {
+  assert.ok(has(engSrc, "const videoEvidence"), "gate removed");
+  assert.ok(has(engSrc, "if (this.prevCaptionTexts && videoEvidence)"), "caption no longer requires video evidence");
+  assert.ok(has(engSrc, "videoEvidence ? capTexts : null"), "off-video baseline not cleared");
+});
+check("worker duration spans the whole pass, not just the local file read", () => {
+  assert.ok(has(capSrc, "ms: doneAt - started"), "duration expression missing");
+  // 旧写法 ms: Date.now() - w.lastUse 只量到读结果文件，实测会把 700ms 报成 7ms
+  assert.ok(!has(capSrc, "ms: Date.now() - w.lastUse"), "stale duration expression present");
+});
+check("degradation backs off instead of hammering a dead channel", () => {
+  assert.ok(has(engSrc, "this.degradedStreak > 0"), "backoff branch removed");
+  assert.ok(has(engSrc, "Math.min(30000"), "backoff cap removed");
+});
+check("engine honours the configured per-frame timeout", () =>
+  assert.ok(has(engSrc, "structuralSnapshot(this.cfg.captureTimeoutMs)"), "timeout not threaded through"));
+check("plugin apply is failure-isolated so a bad bundle cannot take the profile down", () => {
+  const idx = readFileSync(join(LIB, "index.js"), "utf8");
+  assert.ok(has(idx, "makeStubEngine"), "stub fallback removed");
+  assert.ok(has(idx, "engine = new VisionEngine(config)"), "engine construction not wrapped");
+});
 /* ── 8. 引擎降级 ───────────────────────────────────────────── */
 console.log(NL + "[8] engine degradation");
 await acheck("captureDiagnostics reports mode, workDir and script presence", async () => {
