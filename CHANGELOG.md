@@ -1,5 +1,18 @@
 # 更新日志
 
+## 1.1.5 —— 2026-10-29（常驻采集进程可能永不回收）
+
+排查「已 `vision_stop` 但 `workerActive` 仍为 true」时发现一个真实生命周期缺陷（v1.1.1 引入）：
+空闲回收器 `startReaper()` **只在 `probeCapabilities()` 里启动**。而 README 宣传的「即用即读」路径
+——未监听时直接 `vision_read` —— 会经 `ensureWorker()` 起一个常驻 powershell.exe，却没有任何回收器；
+`engine.stop()` 只在「曾经 `start()` 过」时才会被调到，于是这条路径起的 worker 会一直活到宿主重启。
+
+- `startReaper()` 移到 `ensureWorker()` 内、worker 就绪处调用，任何起 worker 的路径都保证有回收器。
+- `workerIdleMs` 经 `configureCapture()` 注入回收器（此前只有 probe 那条路能把它传进去）。
+- 新增 2 条防回归断言（共 **69 项**），其中一条直接检查 `ensureWorker` 函数体内必须在 `worker = w` 之后调用 `startReaper`。
+
+本机实测残留进程数为 0（宿主里 probe 路径先跑过，回收器已挂上），属潜在缺陷而非已发生的泄漏。
+
 ## 1.1.4 —— 2026-10-29（把帧率说清楚，并让它可调）
 
 重启到 1.1.3 后测稳态，发现**我上一版写进 README 的数字是错的**：「worker 627~871ms/帧、1.2~1.6fps」是在轻量前台窗口下测的，浏览器一类复杂窗口实测 **1.9~3.5s/帧（≈0.3fps）**。分解计时定位了原因：单帧成本几乎全在 UIA 跨进程逐节点查询（每个节点的 Name/Class/Rect/Pattern 各一次），GDI+ 截图只占 ~320ms。

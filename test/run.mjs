@@ -462,6 +462,22 @@ check("bundle patch documents every config key", () => {
   });
   assert.deepEqual(dropped, [], "keys missing from cordis.patch.yml: " + dropped.join(","));
 });
+/* ── 7d. worker 生命周期（v1.1.5）───────────────────────── */
+console.log(NL + "[7d] worker lifecycle");
+check("the idle reaper is armed whenever a worker starts, not only on probe", () => {
+  // 即用即读路径（vision_read 未先 probeCapabilities）也会起 worker；若回收器只在
+  // probe 里启动，这个 powershell.exe 会活到宿主重启。
+  const seg = capSrc.slice(capSrc.indexOf("async function ensureWorker"), capSrc.indexOf("function failAllPending"));
+  assert.ok(has(seg, "startReaper("), "ensureWorker does not arm the idle reaper");
+  assert.ok(has(seg, "worker = w;"), "unexpected ensureWorker shape");
+  const atWorker = seg.indexOf("worker = w;");
+  assert.ok(seg.indexOf("startReaper(", atWorker) > atWorker, "reaper must be armed after the worker is live");
+});
+check("workerIdleMs is configurable and reaches the reaper", () => {
+  assert.ok(has(capSrc, "workerIdleMs = cfg.workerIdleMs"), "idleMs not taken from config");
+  assert.equal(cfgMod.mergeConfig({}).workerIdleMs, 60000);
+  assert.equal(cfgMod.mergeConfig({ workerIdleMs: 1 }).workerIdleMs, 5000);
+});
 /* ── 8. 引擎降级 ───────────────────────────────────────────── */
 console.log(NL + "[8] engine degradation");
 await acheck("captureDiagnostics reports mode, workDir and script presence", async () => {
