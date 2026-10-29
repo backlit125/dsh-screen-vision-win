@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+# 采集中间产物只应落在系统临时目录；这里兜底防误提交
+*.png
+*.tgz

@@ -1,0 +1,74 @@
+# dsh-screen-vision-win bundle patch —— 把「Windows 屏幕连续视觉」插件挂进 DSH 配置树。
+#
+# 装载链（与 dsh-memory-card / billion-context 同款）：
+#   1) profile 的 package.json 里加依赖，并把包名放进 dsh.profile.bundles：
+#        "dsh-screen-vision-win": "file:./vendor/dsh-screen-vision-win-1.1.1.tgz"
+#      （或 link: 指向解包目录），然后 pnpm install。
+#   2) 本 patch 由 loader 自动读取，往配置树 insert 一行：
+#      id 全局唯一；name 解析到包目录，入口取其 package.json 的 main（lib/index.js）。
+#   3) 用户可在 profile 自己的 cordis.patch.yml 里按同一个 id 覆盖任意 config 字段。
+#
+# 三个 name 必须一致：patch 的 name = lib/index.js 导出的 name = package.json 的 name。
+# config 全部可省略（lib/config.js 内置默认值，坏值一律回落默认）；这里显式给一份推荐值。
+- insert:
+    - id: dsh-screen-vision-win
+      name: 'dsh-screen-vision-win'
+      config:
+        # 帧率上限：感知循环最小间隔（毫秒）。
+        # 注意：这是「间隔下限」，实际频率受单帧采集耗时约束——引擎读到
+        # lastCaptureMs 后会自动放宽间隔，不会把超时当成正常节拍。
+        # 常驻 worker 约 500ms/帧（2fps）；受限环境回落到单进程时约 1500ms/帧。
+        # 1000≈1fps（省电），500≈2fps（交互流畅 vs CPU 的平衡点）。
+        minPollMs: 500
+        # 静默节流：连续 2 帧无变化后拉长到 idlePollMs；再静默 idleDemoteAfterMs
+        # 后降到 8s 一档（那时先只看控件树指纹，变了才截图）。
+        idlePollMs: 2000
+        idleDemoteAfterMs: 15000
+        # 事件环缓冲大小：vision_watch_events / vision_read 最多保留多少条事件。
+        eventRingSize: 200
+        # 帧差网格（列×行）。越大越精细、越贵。24×11 对 2560×1600 ≈ 每格 107×145px。
+        # 网格是「给 LLM 的正确粒度」，不是逐像素 mask。
+        gridX: 24
+        gridY: 11
+        # 格内跳点采样：每 N 个像素取 1 个算均值，1=不降采样。
+        # 实测 2560×1600 RGBA 全量 sampleGrid ~30ms、解码 ~80ms，无需降采样；
+        # 低配机或高分屏（4K）可设 2~4。
+        pixelStride: 1
+        # 可见文本/控件截取上限（字符数与元素数），控制 token 体积。
+        maxTextChars: 2000
+        maxUiElements: 40
+        # 隐私：这些进程在前台时 vision_read 只报「应用在场 + 遮罩提示」，
+        # 不采集控件树与画面。Windows 进程名可含空格与连字符
+        # （例：["DeepSeek Harness", "Premiere Pro", "chrome.exe"]）。
+        # 密码框另有 UIA IsPassword 级别的自动打码，无需列进这里。
+        privacyPackages: []
+        # 隐私：矩形遮罩列表（分数坐标 0~1，避免不同分辨率/缩放下的绝对像素脆弱性），
+        # 落入遮罩内的节点文本与画面差分一律以 [MASKED] 汇报。
+        # 例：{ fx1: 0.0, fy1: 0.0, fx2: 1.0, fy2: 0.06, label: 'top-bar' }
+        privacyRects: []
+        # 详情级别：minimal | standard | verbose。控制单条 JSON 里可见文本、
+        # 控件、布局层级的展开程度。
+        detail: standard
+        # 视频检测阈值：帧差比例超过 videoMotionHigh 持续 videoMinFrames 帧
+        # 且控件树几乎不变时判为「疑似视频/动画区域」。
+        videoMotionHigh: 0.18
+        videoMinFrames: 4
+        # motion 语言化时把帧差格聚合为「大块区域」的最少连续格数。
+        motionRegionMinCells: 6
+        # 观察窗口（毫秒）：vision_read 汇报「最近变化」时回看的时间长度。
+        recentWindowMs: 12000
+        # 场景切换（v1.1.0 引入）：单帧变化比例超过阈值且不是整屏平移 ⇒ 场景切换。
+        sceneChangeThreshold: 0.45
+        # 字幕区域纵向分数范围（屏幕下部），供 caption_change 事件用。
+        captionRegionFy: [0.78, 0.96]
+        captionTextStableFrames: 3
+        # 采集通道（v1.1.1）：auto=先试常驻 worker，起不来即回落单进程；
+        # worker=只用常驻（受限环境会直接失败）；oneshot=每帧一个新进程（最稳，帧率减半）。
+        captureMode: auto
+        # 常驻 worker 空闲多久后回收（不监听时不留 powershell.exe 进程）。
+        workerIdleMs: 60000
+        # 单帧采集超时（毫秒）。worker 约 0.5s/帧、oneshot 约 1.5s/帧，留一倍余量。
+        captureTimeoutMs: 6000
+        # 开机即持续监听：改成 true（或设环境变量 DSH_VISION_AUTOSTART=1）。
+        # 默认 false =「即用即读」：AI 首次 vision_read 会即时采一帧，无需预热。
+        autoStart: false
