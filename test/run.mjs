@@ -58,7 +58,7 @@ check("inject declares tools only", () => assert.deepEqual(indexMod.inject, ["to
 console.log(NL + "[2] config");
 check("out-of-range values clamp to bounds", () => {
   const c = cfgMod.mergeConfig({ minPollMs: 1, gridX: 999, detail: "nonsense", videoMotionHigh: 5, pixelStride: 0 });
-  assert.equal(c.minPollMs, 100);
+  assert.equal(c.minPollMs, 300);
   assert.equal(c.gridX, 64);
   assert.equal(c.detail, "standard");
   assert.equal(c.videoMotionHigh, 0.9);
@@ -432,11 +432,35 @@ check("degradation backs off instead of hammering a dead channel", () => {
   assert.ok(has(engSrc, "Math.min(30000"), "backoff cap removed");
 });
 check("engine honours the configured per-frame timeout", () =>
-  assert.ok(has(engSrc, "structuralSnapshot(this.cfg.captureTimeoutMs)"), "timeout not threaded through"));
+  assert.ok(has(engSrc, "structuralSnapshot(this.cfg.captureTimeoutMs,"), "timeout not threaded through"));
 check("plugin apply is failure-isolated so a bad bundle cannot take the profile down", () => {
   const idx = readFileSync(join(LIB, "index.js"), "utf8");
   assert.ok(has(idx, "makeStubEngine"), "stub fallback removed");
   assert.ok(has(idx, "engine = new VisionEngine(config)"), "engine construction not wrapped");
+});
+/* ── 7c. 遍历预算与节拍（v1.1.4）────────────────────────── */
+console.log(NL + "[7c] tree budget and cadence");
+check("tree budget is configurable and clamped", () => {
+  assert.equal(cfgMod.mergeConfig({}).maxTreeNodes, 600);
+  assert.equal(cfgMod.mergeConfig({}).maxTreeDepth, 12);
+  assert.equal(cfgMod.mergeConfig({ maxTreeNodes: 99999 }).maxTreeNodes, 2000);
+  assert.equal(cfgMod.mergeConfig({ maxTreeDepth: 0 }).maxTreeDepth, 2);
+});
+check("default minPollMs matches measured Windows frame cost", () => {
+  // 500ms 是 Android 版留下的：真实宿主里复杂窗口单帧 1.9~3.5s，只会每帧撞超时
+  assert.ok(cfgMod.DEFAULTS.minPollMs >= 1000, "minPollMs default too optimistic for Windows: " + cfgMod.DEFAULTS.minPollMs);
+});
+check("engine threads the budget into the collector", () => {
+  assert.ok(has(engSrc, "maxNodes: this.cfg.maxTreeNodes"), "budget not passed to structuralSnapshot");
+  assert.ok(has(engSrc, "maxDepth: this.cfg.maxTreeDepth"), "depth not passed to structuralSnapshot");
+});
+check("bundle patch documents every config key", () => {
+  const raw = readFileSync(join(LIB, "..", "cordis.patch.yml"), "utf8");
+  const dropped = Object.keys(cfgMod.DEFAULTS).filter((k) => {
+    // 每个默认键都应在 patch 里出现（缩进两格 + 键名 + 冒号）
+    return !has(raw, "\n        " + k + ":");
+  });
+  assert.deepEqual(dropped, [], "keys missing from cordis.patch.yml: " + dropped.join(","));
 });
 /* ── 8. 引擎降级 ───────────────────────────────────────────── */
 console.log(NL + "[8] engine degradation");

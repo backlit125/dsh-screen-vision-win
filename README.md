@@ -35,7 +35,7 @@ lib/tools.js      7 个工具的宿主注册定义（完整 JSON Schema）
 ### 性能与省电
 
 - **自适应降频**：变化期用 `minPollMs`；静默 2 帧升到 `idlePollMs`；静默超 `idleDemoteAfterMs` 降到 8s 一档，且那一档**先只看控件树指纹，指纹变了才截图**。
-- **耗时自适应**：引擎读到上帧实测 `lastCaptureMs`，若接近当前节拍就自动放宽间隔——不会把「采集比间隔还慢」当成常态，也不会疯狂超时。
+- **耗时自适应**：引擎读到上帧实测 `lastCaptureMs`，若接近当前节拍就自动放宽间隔（×1.6）。这条在 v1.1.3 之前形同虚设——`lastCaptureMs` 曾被错测成个位数毫秒，v1.1.3 修好了测量，v1.1.4 据此把默认 `minPollMs` 从 500 调到 1200。
 - **采集失败退避**：连续失败按 `minPollMs × 2^n` 指数退避（上限 30s），每 10 次重复上报一条 degraded（首次必报）。
 - **常驻 worker 空闲回收**：`workerIdleMs` 不用就收掉，不监听时不留 `powershell.exe`。
 - **像素不留盘**：截图读进内存即删；帧只保留 `gridX×gridY×3` 个数字，原始像素差分完即丢。
@@ -45,10 +45,12 @@ lib/tools.js      7 个工具的宿主注册定义（完整 JSON Schema）
 | 环节 | 耗时 |
 |---|---|
 | PowerShell 冷启动到 `READY`（含 Add-Type） | ~780ms |
-| 单帧采集 · 常驻 worker（真机连续 6 帧实测） | 627~871ms（≈1.2~1.6fps，首帧 3.3s 含冷启） |
-| 单帧采集 · 每帧新进程（oneshot） | ~1500ms |
+| 单帧采集 · 常驻 worker · 轻量前台窗口 | 263~605ms |
+| 单帧采集 · 常驻 worker · 浏览器/复杂窗口（280 节点） | 1915~3552ms |
+| 单帧采集 · 每帧新进程（oneshot，含进程启动） | ~1500ms（轻量窗口） |
 | Node 侧 PNG 自解码（5.8MB → 16.4M 像素） | ~80ms |
 | `sampleGrid` 24×11 全采 | ~30ms |
+| GDI+ 截图 + PNG 编码（2560×1600） | ~320ms |
 | `diffGrids` + `estimateMotion` + `clusterChanged` | ~3ms |
 
 ---
@@ -159,6 +161,17 @@ v1.1.0 装好后不会崩，但会**一直输出 `degraded`**——四条采集�
 | 15 | README/文案/安装路径还是 Android 的（「系统设置→无障碍→DeepSeek Harness 屏幕助手」、`profiles/web`、`DeepSeekHarness/screenshots`），patch `id/name` 与导出 `name` 也不一致 | 全部改 Windows 实态；三个 `name` 统一为 `dsh-screen-vision-win` |
 
 ---
+
+### 帧率不是常数
+
+单帧耗时主要由**前台窗口的 UIA 树规模**决定（每个节点的 Name/Class/Rect/Pattern 都是跨进程查询），截图只占 ~320ms。实测同一个记事本窗口：
+
+| 遍历预算 | 采到的节点 | 单帧耗时 |
+|---|---|---|
+| `maxTreeNodes:600 / maxTreeDepth:12`（默认） | 280 | 1915~3552ms |
+| `200 / 8` | 15 | 263~528ms |
+
+调小预算能换帧率，但会丢深层控件（浏览器正文常在 depth 8 以下），所以默认保持完整遍历，由引擎按实测耗时自动放宽节拍。
 
 ## 7. 兼容性与功能边界
 
